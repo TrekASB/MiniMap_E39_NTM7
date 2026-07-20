@@ -2,7 +2,7 @@
 <html lang="nb">
 <head>
 <meta charset="UTF-8" />
-<title>MiniMap E39 – Trimble Connect</title>
+<title>MiniMap E39</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -84,6 +84,13 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
 .camera-center{position:absolute;left:50%;top:50%;width:11px;height:11px;transform:translate(-50%,-50%);border-radius:50%;background:#fff;border:3px solid #e53935;box-shadow:0 1px 4px rgba(15,23,42,.35)}
 @keyframes cameraPulse{0%{transform:scale(.72);opacity:.75}70%{transform:scale(1.35);opacity:0}100%{transform:scale(1.35);opacity:0}}
 @media (prefers-reduced-motion:reduce){.camera-marker-host,.camera-bearing{transition:none}.camera-halo{animation:none}}
+
+.model-line-pane{z-index:610!important;pointer-events:none}
+.model-road-line{filter:drop-shadow(0 1px 2px rgba(15,23,42,.28));stroke-linecap:round;stroke-linejoin:round}
+.model-road-casing{stroke-linecap:round;stroke-linejoin:round}
+.model-sync{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:10.5px;font-weight:750}
+.model-sync strong{color:var(--primary)}
+
 .hidden{display:none!important}
 
 @media(max-width:980px){.toolbar{width:min(570px,calc(100% - 24px))}.section-label{min-width:100%}.badge{margin-left:0}.corner{top:auto;bottom:12px;right:58px}}
@@ -102,7 +109,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
     <div class="title-block">
       <h1 class="title">MiniMap</h1>
       <div class="org">Norconsult Norge</div>
-      <div class="dev"><strong><br>AI-assisted development<br><span class="dev-contact">Kontakt: Edin.Dzakmic@norconsult.com</span></div>
+      <div class="dev"><strong>Developed by Edin Dzakmic, Norconsult</strong><br>AI-assisted development<br><span class="dev-contact">Kontakt: Edin.Dzakmic@norconsult.com</span></div>
     </div>
   </div>
   <div class="status"><span id="statusText">Starter…</span><span id="statusDot" class="dot"></span></div>
@@ -148,6 +155,9 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
     <div class="checks options-row">
       <label><input type="checkbox" id="showFOV" checked> Synsfelt</label>
       <label><input type="checkbox" id="clickMove" checked> Klikk i kart flytter kamera</label>
+      <label><input type="checkbox" id="showModelLine" checked> Veglinje fra viste modeller</label>
+      <button id="refreshModelLine" class="btn" title="Les viste fagmodeller på nytt">↻ Oppdater veglinje</button>
+      <span id="modelLineStatus" class="model-sync">Modellinje: <strong>venter</strong></span>
       <span class="badge">Fast CRS: EUREF89 NTM7 (EPSG:5107) · Høyde: NN2000</span>
     </div>
   </div>
@@ -161,6 +171,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
 'use strict';
 const $ = id => document.getElementById(id);
 let API=null,map=null,baseLayer=null,fkbLayer=null,customWmsLayer=null,cameraMarker=null,fovLayer=null,pollTimer=null;
+let modelLineGroup=null,modelLineTimer=null,modelLineBusy=false,modelLineRefreshTimer=null;
 let followCamera=true,hasCamera=false,lastVisualBearing=null;
 let camPos={x:0,y:0,z:0},camDir={x:0,y:1,z:0};
 let lastGeocodeAt=0,lastGeocodeLL=null,geocodeAbort=null;
@@ -343,7 +354,9 @@ function addCustomWMS(showMsg=true){
 
 function initMap(){
   map=L.map('gmap',{zoomControl:false,preferCanvas:true,attributionControl:true}).setView([61.0000000,7.5000000],15);
+  map.createPane('modelLinePane');map.getPane('modelLinePane').style.zIndex=610;map.getPane('modelLinePane').classList.add('model-line-pane');
   map.createPane('cameraPane');map.getPane('cameraPane').style.zIndex=700;
+  modelLineGroup=L.layerGroup().addTo(map);
   setBaseLayer($('mapLayer').value);
   $('zoomIn').onclick=()=>map.zoomIn();$('zoomOut').onclick=()=>map.zoomOut();$('resetView').onclick=fitAll;
   map.on('dragstart',()=>{followCamera=false;$('followBtn').classList.remove('active');});
@@ -382,7 +395,94 @@ function vFromTo(a,b){if(!a||!b)return null;return{x:(b.x??b.X??0)-(a.x??a.X??0)
 function parseCamera(cam){if(!cam)return;const c=cam.camera??cam;const pos=c.lookAt??c.target??c.position??c.eye??c.cameraPosition??c.location;const dir=c.direction??c.viewDirection??(c.target||c.lookAt?vFromTo(c.eye??c.position,c.target??c.lookAt):null);onCameraUpdate(pos,dir);}
 async function safe(fn){try{return await fn();}catch(e){return null;}}
 async function pollCamera(){if(!API)return;const calls=[()=>API.viewer?.getCamera?.(),()=>API.viewer?.camera?.getCamera?.(),()=>API.viewer?.getView?.()];for(const c of calls){const r=await safe(c);if(r){parseCamera(r);return;}}}
-async function initTrimble(){try{API=await TrimbleConnectWorkspace.connect(window.parent,(event,args)=>{const ev=String(event).toLowerCase();if(ev.includes('camera')||ev.includes('view'))parseCamera(args?.data??args?.camera??args);});setStatus('live','Trimble tilkoblet');await safe(()=>API.viewer?.subscribeToCamera?.());await safe(()=>API.viewer?.enableCameraEvents?.());pollTimer=setInterval(pollCamera,700);pollCamera();}catch(e){console.error(e);setStatus('error','Trimble ikke tilkoblet');toast('Trimble Connect API ikke tilgjengelig');}}
+
+function setModelLineStatus(text){const el=$('modelLineStatus');if(el)el.innerHTML='Modellinje: <strong>'+text+'</strong>';}
+function clearModelLines(){if(modelLineGroup)modelLineGroup.clearLayers();setModelLineStatus('av');}
+function finiteXY(p){const x=Number(p?.x??p?.X),y=Number(p?.y??p?.Y);return Number.isFinite(x)&&Number.isFinite(y)?{x,y}:null;}
+function boxCenter(box){
+  const b=box?.boundingBox??box?.box??box;
+  const mn=b?.min??b?.minimum??b?.minPoint, mx=b?.max??b?.maximum??b?.maxPoint;
+  if(!mn||!mx)return null;
+  const x=(Number(mn.x??mn.X)+Number(mx.x??mx.X))/2,y=(Number(mn.y??mn.Y)+Number(mx.y??mx.Y))/2;
+  return Number.isFinite(x)&&Number.isFinite(y)?{x,y}:null;
+}
+function modelName(spec,id){return String(spec?.name??spec?.fileName??spec?.title??spec?.displayName??id??'Fagmodell');}
+function isPlausibleProjectPoint(p){return p&&p.x>-500000&&p.x<1500000&&p.y>-500000&&p.y<3000000;}
+function uniquePoints(points,tol=0.25){
+  const seen=new Set(),out=[];
+  for(const p of points){if(!isPlausibleProjectPoint(p))continue;const k=Math.round(p.x/tol)+','+Math.round(p.y/tol);if(!seen.has(k)){seen.add(k);out.push(p);}}
+  return out;
+}
+function principalStats(points){
+  let mx=0,my=0;for(const p of points){mx+=p.x;my+=p.y;}mx/=points.length;my/=points.length;
+  let xx=0,xy=0,yy=0;for(const p of points){const dx=p.x-mx,dy=p.y-my;xx+=dx*dx;xy+=dx*dy;yy+=dy*dy;}
+  const angle=.5*Math.atan2(2*xy,xx-yy),ux=Math.cos(angle),uy=Math.sin(angle),vx=-uy,vy=ux;
+  let minT=Infinity,maxT=-Infinity,minN=Infinity,maxN=-Infinity;
+  const projected=points.map(p=>{const dx=p.x-mx,dy=p.y-my,t=dx*ux+dy*uy,n=dx*vx+dy*vy;minT=Math.min(minT,t);maxT=Math.max(maxT,t);minN=Math.min(minN,n);maxN=Math.max(maxN,n);return{...p,t,n};});
+  return{mx,my,ux,uy,vx,vy,minT,maxT,minN,maxN,length:maxT-minT,width:maxN-minN,projected};
+}
+function inferCenterLine(points){
+  points=uniquePoints(points);
+  if(points.length<3)return[];
+  if(points.length>8000){const step=Math.ceil(points.length/8000);points=points.filter((_,i)=>i%step===0);}
+  const st=principalStats(points);
+  if(st.length<20||st.width/st.length>.72)return[];
+  const binCount=Math.max(8,Math.min(180,Math.round(st.length/12))),binSize=st.length/binCount,bins=Array.from({length:binCount},()=>[]);
+  for(const p of st.projected){const i=Math.max(0,Math.min(binCount-1,Math.floor((p.t-st.minT)/Math.max(binSize,.001))));bins[i].push(p);}
+  const line=[];
+  for(const bin of bins){if(!bin.length)continue;bin.sort((a,b)=>a.n-b.n);const mid=bin[Math.floor(bin.length/2)];const avgT=bin.reduce((a,p)=>a+p.t,0)/bin.length;line.push({x:st.mx+avgT*st.ux+mid.n*st.vx,y:st.my+avgT*st.uy+mid.n*st.vy});}
+  return line;
+}
+function splitOnLargeGaps(line){
+  if(line.length<2)return[];const ds=[];for(let i=1;i<line.length;i++)ds.push(Math.hypot(line[i].x-line[i-1].x,line[i].y-line[i-1].y));
+  const sorted=[...ds].sort((a,b)=>a-b),median=sorted[Math.floor(sorted.length/2)]||10,limit=Math.max(70,median*6),parts=[];let part=[line[0]];
+  for(let i=1;i<line.length;i++){if(ds[i-1]>limit){if(part.length>1)parts.push(part);part=[];}part.push(line[i]);}if(part.length>1)parts.push(part);return parts;
+}
+async function getVisibleModelObjects(){
+  let groups=await safe(()=>API.viewer.getObjects(undefined,{visible:true}));
+  if(!Array.isArray(groups)||!groups.length)groups=await safe(()=>API.viewer.getObjects());
+  return Array.isArray(groups)?groups:[];
+}
+async function pointsForModel(group){
+  const objects=Array.isArray(group?.objects)?group.objects:[],points=[];
+  for(const o of objects){const p=finiteXY(o?.position);if(p)points.push(p);}
+  if(points.length>=Math.min(40,objects.length*.25))return points;
+  const ids=objects.map(o=>Number(o?.id)).filter(Number.isFinite);
+  for(let i=0;i<ids.length;i+=400){
+    const boxes=await safe(()=>API.viewer.getObjectBoundingBoxes(group.modelId,ids.slice(i,i+400)));
+    if(Array.isArray(boxes))for(const b of boxes){const p=boxCenter(b);if(p)points.push(p);}
+    if(points.length>10000)break;
+  }
+  return points;
+}
+function scheduleModelLineRefresh(delay=900){clearTimeout(modelLineRefreshTimer);modelLineRefreshTimer=setTimeout(()=>refreshModelLines(false),delay);}
+async function refreshModelLines(showToast=true){
+  if(!$('showModelLine')?.checked){clearModelLines();return;}
+  if(!API||!map||modelLineBusy)return;
+  modelLineBusy=true;setModelLineStatus('leser…');
+  try{
+    const specs=await safe(()=>API.viewer.getModels());const specMap=new Map();
+    if(Array.isArray(specs))for(const m of specs){for(const id of [m?.id,m?.modelId,m?.versionId,m?.fileId].filter(Boolean))specMap.set(String(id),m);}
+    const groups=await getVisibleModelObjects();modelLineGroup.clearLayers();let modelCount=0,segmentCount=0,totalPoints=0;
+    for(const g of groups){
+      const id=String(g?.modelId??'');if(!id)continue;
+      const pts=await pointsForModel(g);totalPoints+=pts.length;
+      const line=inferCenterLine(pts);if(line.length<2)continue;
+      const name=modelName(specMap.get(id),id);let drew=false;
+      for(const part of splitOnLargeGaps(line)){
+        const latlngs=part.map(p=>modelToLatLng(p.x,p.y));if(latlngs.length<2)continue;
+        L.polyline(latlngs,{pane:'modelLinePane',className:'model-road-casing',color:'#ffffff',weight:8,opacity:.92,interactive:false}).addTo(modelLineGroup);
+        const l=L.polyline(latlngs,{pane:'modelLinePane',className:'model-road-line',color:'#e65100',weight:4,opacity:.95,interactive:true});
+        l.bindTooltip(name,{sticky:true,direction:'top'});l.addTo(modelLineGroup);segmentCount++;drew=true;
+      }
+      if(drew)modelCount++;
+    }
+    setModelLineStatus(modelCount?`${modelCount} modeller / ${segmentCount} linjer`:'ingen egnet veggeometri');
+    if(showToast)toast(modelCount?`Veglinje oppdatert fra ${modelCount} viste fagmodeller.`:`Fant ingen langstrakt veggeometri i de viste modellene.`,4200);
+  }catch(e){console.error('Modellinje feilet',e);setModelLineStatus('feil');if(showToast)toast('Kunne ikke lese modellobjekter fra Trimble Connect.',4500);}
+  finally{modelLineBusy=false;}
+}
+async function initTrimble(){try{API=await TrimbleConnectWorkspace.connect(window.parent,(event,args)=>{const ev=String(event).toLowerCase();if(ev.includes('camera')||ev.includes('view'))parseCamera(args?.data??args?.camera??args);if(ev.includes('model')||ev.includes('visibility')||ev.includes('presentation')||ev.includes('layer'))scheduleModelLineRefresh();});setStatus('live','Trimble tilkoblet');await safe(()=>API.viewer?.subscribeToCamera?.());await safe(()=>API.viewer?.enableCameraEvents?.());pollTimer=setInterval(pollCamera,700);modelLineTimer=setInterval(()=>refreshModelLines(false),30000);pollCamera();setTimeout(()=>refreshModelLines(false),1800);}catch(e){console.error(e);setStatus('error','Trimble ikke tilkoblet');toast('Trimble Connect API ikke tilgjengelig');}}
 async function onMapClick(e){if(!$('clickMove')?.checked||!API||!hasCamera)return;const target=latLngToModel(e.latlng);const cam={position:{x:target.x,y:target.y,z:target.z},direction:camDir};let ok=false;const calls=[()=>API.viewer?.setCamera?.(cam),()=>API.viewer?.camera?.setCamera?.(cam),()=>API.viewer?.setView?.({camera:cam}),()=>API.viewer?.moveCamera?.(cam)];for(const c of calls){const r=await safe(c);if(r!==null){ok=true;break;}}camPos=target;updateCamera();toast(ok?'Kamera flyttet til NTM7-posisjon':'Kartposisjon beregnet, men Trimble API støtter ikke kameraflytting her');}
 function openStreetView(){const ll=hasCamera?modelToLatLng(camPos.x,camPos.y):map?.getCenter();if(!ll){toast('Ingen kartposisjon tilgjengelig');return;}const url=`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${ll.lat.toFixed(7)},${ll.lng.toFixed(7)}&heading=${Math.round(headingDeg())}&pitch=0&fov=80`;const w=window.open(url,'_blank','noopener,noreferrer');toast(w?'Åpner Google Street View i ny fane':'Nettleseren blokkerte ny fane.');}
 function wireUI(){
@@ -396,6 +496,8 @@ function wireUI(){
   $('closeCfg').onclick=()=>$('setupPanel').classList.remove('show');
   $('streetViewBtn').onclick=openStreetView;
   $('showFOV').onchange=()=>updateCamera();
+  $('showModelLine').onchange=()=>{$('showModelLine').checked?refreshModelLines(true):clearModelLines();};
+  $('refreshModelLine').onclick=()=>refreshModelLines(true);
 }
 (function boot(){wireUI();setStatus('','Laster kart…');initMap();initTrimble();})();
 </script>
