@@ -2,7 +2,7 @@
 <html lang="nb">
 <head>
 <meta charset="UTF-8" />
-<title>MiniMap E39</title>
+<title>MiniMap E39 – Trimble Connect – modellinje</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -17,12 +17,12 @@
   font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
-body{height:100vh;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);color:var(--text);user-select:none}
+html,body{width:100%;height:100%;min-height:100%;overflow:hidden}
+body{position:fixed;inset:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto;overflow:hidden;background:var(--bg);color:var(--text);user-select:none}
 button,select,input{font:inherit}
 button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid rgba(0,87,184,.18);outline-offset:1px}
 
-.topbar{height:82px;flex:0 0 auto;display:flex;align-items:center;padding:8px 16px;background:rgba(255,255,255,.98);border-bottom:1px solid var(--border);box-shadow:0 1px 8px rgba(15,23,42,.05);z-index:20}
+.topbar{min-height:82px;display:flex;align-items:center;padding:8px 16px;background:rgba(255,255,255,.98);border-bottom:1px solid var(--border);box-shadow:0 1px 8px rgba(15,23,42,.05);z-index:20}
 .title-container{display:flex;align-items:center;gap:13px;min-width:0}
 .title-container .logo{width:122px;max-height:42px;object-fit:contain}
 .title-block{display:flex;flex-direction:column;line-height:1.12;min-width:0}
@@ -34,8 +34,8 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
 .dot.live{background:var(--ok);box-shadow:0 0 0 4px rgba(22,163,106,.12)}
 .dot.warn{background:var(--warn)}.dot.error{background:var(--bad)}
 
-#mapWrap{position:relative;flex:1;min-height:0;overflow:hidden}
-#gmap{position:absolute;inset:0}
+#mapWrap{position:relative;width:100%;height:100%;min-width:0;min-height:240px;overflow:hidden;background:#dbe4ec}
+#gmap{position:absolute;inset:0;width:100%;height:100%;min-height:240px;z-index:0}
 .leaflet-container{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:#dbe4ec}
 .leaflet-interactive{outline:none}
 
@@ -65,7 +65,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
 .ctrl{width:38px;height:38px;border:1px solid var(--border);border-radius:11px;background:rgba(255,255,255,.97);color:var(--text);font-size:18px;font-weight:800;cursor:pointer;box-shadow:var(--shadow-soft);transition:background .15s,transform .08s}
 .ctrl:hover{background:#f6f9fc}.ctrl:active{transform:translateY(1px)}
 
-.info{height:58px;flex:0 0 auto;display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-top:1px solid var(--border);box-shadow:0 -4px 14px rgba(15,23,42,.04)}
+.info{min-height:58px;display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-top:1px solid var(--border);box-shadow:0 -4px 14px rgba(15,23,42,.04)}
 .cell{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 12px;border-right:1px solid #edf1f5}
 .cell:last-child{border-right:0}
 .lab{font-size:9px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.08em}
@@ -353,7 +353,10 @@ function addCustomWMS(showMsg=true){
 }
 
 function initMap(){
-  map=L.map('gmap',{zoomControl:false,preferCanvas:true,attributionControl:true}).setView([61.0000000,7.5000000],15);
+  if(typeof L==='undefined')throw new Error('Leaflet ble ikke lastet. Kontroller at unpkg.com er tillatt.');
+  const mapEl=$('gmap');
+  if(!mapEl)throw new Error('Kartbeholderen #gmap mangler.');
+  map=L.map(mapEl,{zoomControl:false,preferCanvas:true,attributionControl:true}).setView([61.0000000,7.5000000],15);
   map.createPane('modelLinePane');map.getPane('modelLinePane').style.zIndex=610;map.getPane('modelLinePane').classList.add('model-line-pane');
   map.createPane('cameraPane');map.getPane('cameraPane').style.zIndex=700;
   modelLineGroup=L.layerGroup().addTo(map);
@@ -361,6 +364,12 @@ function initMap(){
   $('zoomIn').onclick=()=>map.zoomIn();$('zoomOut').onclick=()=>map.zoomOut();$('resetView').onclick=fitAll;
   map.on('dragstart',()=>{followCamera=false;$('followBtn').classList.remove('active');});
   map.on('click',onMapClick);
+  const resizeMap=()=>{if(map){try{map.invalidateSize({pan:false,animate:false});}catch(e){}}};
+  requestAnimationFrame(resizeMap);
+  setTimeout(resizeMap,100);
+  setTimeout(resizeMap,500);
+  if('ResizeObserver' in window){new ResizeObserver(resizeMap).observe($('mapWrap'));}
+  window.addEventListener('resize',resizeMap,{passive:true});
 }
 function fitAll(){if(hasCamera&&map)map.setView(modelToLatLng(camPos.x,camPos.y),Math.max(map.getZoom(),18));}
 function cameraIcon(){return L.divIcon({className:'camera-marker-host',html:`<div class="camera-icon"><div class="camera-halo"></div><div class="camera-bearing"><svg viewBox="0 0 54 54" aria-hidden="true"><path d="M27 3 L39 31 L27 26 L15 31 Z" fill="#ffffff" stroke="#ffffff" stroke-width="5" stroke-linejoin="round"/><path d="M27 5.5 L36.5 28.2 L27 24.2 L17.5 28.2 Z" fill="#e53935" stroke="#c62828" stroke-width="1.2" stroke-linejoin="round"/></svg></div><div class="camera-center"></div></div>`,iconSize:[54,54],iconAnchor:[27,27]});}
@@ -499,7 +508,20 @@ function wireUI(){
   $('showModelLine').onchange=()=>{$('showModelLine').checked?refreshModelLines(true):clearModelLines();};
   $('refreshModelLine').onclick=()=>refreshModelLines(true);
 }
-(function boot(){wireUI();setStatus('','Laster kart…');initMap();initTrimble();})();
+function boot(){
+  try{
+    wireUI();
+    setStatus('','Laster kart…');
+    initMap();
+    initTrimble();
+  }catch(e){
+    console.error('Oppstart av MiniMap feilet',e);
+    setStatus('error','Kartfeil');
+    const wrap=$('mapWrap');
+    if(wrap)wrap.innerHTML='<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;background:#eef2f6;color:#b42318;font:600 14px/1.45 Segoe UI,sans-serif">Kartet kunne ikke startes.<br>'+String(e?.message||e)+'</div>';
+  }
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 </script>
 </body>
 </html>
