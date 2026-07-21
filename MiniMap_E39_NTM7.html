@@ -2,7 +2,7 @@
 <html lang="nb">
 <head>
 <meta charset="UTF-8" />
-<title>MiniMap E39 – Trimble Connect – modellinje</title>
+<title>MiniMap E39 – Trimble Connect – Tverrsnitt</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -85,11 +85,20 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
 @keyframes cameraPulse{0%{transform:scale(.72);opacity:.75}70%{transform:scale(1.35);opacity:0}100%{transform:scale(1.35);opacity:0}}
 @media (prefers-reduced-motion:reduce){.camera-marker-host,.camera-bearing{transition:none}.camera-halo{animation:none}}
 
-.model-line-pane{z-index:610!important;pointer-events:none}
-.model-road-line{filter:drop-shadow(0 1px 2px rgba(15,23,42,.28));stroke-linecap:round;stroke-linejoin:round}
-.model-road-casing{stroke-linecap:round;stroke-linejoin:round}
-.model-sync{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:10.5px;font-weight:750}
-.model-sync strong{color:var(--primary)}
+.section-draw-pane{z-index:620!important}
+.section-line{stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 2px rgba(15,23,42,.22))}
+.section-sync{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:10.5px;font-weight:750}
+.section-sync strong{color:var(--primary)}
+.section-window{position:absolute;inset:16px;z-index:1200;display:none;flex-direction:column;background:#fff;border:1px solid var(--border);border-radius:18px;box-shadow:0 24px 90px rgba(15,23,42,.30);overflow:hidden}
+.section-window.show{display:flex}
+.section-head{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border);background:#f8fafc}
+.section-head h3{font-size:15px;color:var(--primary)}
+.section-head .meta{font-size:11px;color:var(--muted);flex:1}
+.section-body{position:relative;flex:1;min-height:260px;padding:12px;background:#fff}
+#sectionCanvas{width:100%;height:100%;display:block;border:1px solid #e3e9f0;border-radius:12px;background:#fff}
+.section-empty{position:absolute;inset:12px;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--muted);font-size:13px;pointer-events:none}
+.section-foot{display:flex;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid var(--border);background:#f8fafc;font-size:11px;color:var(--muted)}
+.section-legend{display:flex;gap:12px;flex-wrap:wrap}.section-legend span{display:inline-flex;align-items:center;gap:5px}.section-legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
 
 .hidden{display:none!important}
 
@@ -155,15 +164,22 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
     <div class="checks options-row">
       <label><input type="checkbox" id="showFOV" checked> Synsfelt</label>
       <label><input type="checkbox" id="clickMove" checked> Klikk i kart flytter kamera</label>
-      <label><input type="checkbox" id="showModelLine" checked> Veglinje fra viste modeller</label>
-      <button id="refreshModelLine" class="btn" title="Les viste fagmodeller på nytt">↻ Oppdater veglinje</button>
-      <span id="modelLineStatus" class="model-sync">Modellinje: <strong>venter</strong></span>
+      <button id="drawSectionBtn" class="btn" title="Klikk to punkter i kartet for å definere tverrsnitt">╱ Tegn tverrsnitt</button>
+      <button id="showSectionBtn" class="btn" title="Vis siste beregnede tverrsnitt">▥ Vis tverrsnitt</button>
+      <label>Snittbredde <input id="sectionWidth" class="mini-input" type="number" min="0.2" max="50" step="0.5" value="2" style="width:72px;height:30px"> m</label>
+      <label><input type="checkbox" id="syncSectionBox" checked> Vis snittboks i 3D</label>
+      <span id="sectionStatus" class="section-sync">Tverrsnitt: <strong>ikke definert</strong></span>
       <span class="badge">Fast CRS: EUREF89 NTM7 (EPSG:5107) · Høyde: NN2000</span>
     </div>
   </div>
   <div class="corner"><div id="levelBadge" class="level">NN2000 Z: –</div><svg id="compass" viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="#fff" stroke="#d8e0ee"/><polygon id="compassNeedle" points="24,5 28,24 24,20 20,24" fill="#0050b5"/><polygon id="compassNeedleS" points="24,43 20,24 24,28 28,24" fill="#98a2b3"/><text x="24" y="14" text-anchor="middle" font-size="7" font-weight="900" fill="#0050b5">N</text></svg></div>
   <div class="controls"><button id="zoomIn" class="ctrl">+</button><button id="zoomOut" class="ctrl">−</button><button id="resetView" class="ctrl" title="Zoom alle">⊙</button></div>
   <div id="setupPanel" class="panel"><h3>Prosjektkoordinatsystem</h3><p class="hint">Denne versjonen er låst til Published coordinate reference system: Norway/EUREF89NTM | NTM Zone 7 | EPSG:5107. Høydesystem: NN2000. Modellkoordinater tolkes som X=øst og Y=nord i EUREF89 NTM sone 7.</p><div class="grid hidden"><div class="field"><label>Koordinatsystem</label><select id="cfgCRS"><option value="ntm7" selected>NTM7</option></select></div><div class="field"><label>Akser</label><select id="cfgAxis"><option value="xy" selected>X=øst, Y=nord</option></select></div><input id="cfgMX" value="0"><input id="cfgMY" value="0"><input id="cfgLat" value="61.0000000"><input id="cfgLng" value="7.5000000"><input id="cfgScaleX" value="1"><input id="cfgScaleY" value="1"><input id="cfgRotation" value="0"></div><div class="actions"><button id="closeCfg" class="btn">Lukk</button></div></div>
+  <div id="sectionWindow" class="section-window" role="dialog" aria-modal="true" aria-label="Tverrsnitt">
+    <div class="section-head"><h3>Tverrsnitt fra viste fagmodeller</h3><div id="sectionMeta" class="meta">–</div><button id="rebuildSectionBtn" class="btn">↻ Oppdater</button><button id="closeSectionBtn" class="btn">Lukk</button></div>
+    <div class="section-body"><canvas id="sectionCanvas"></canvas><div id="sectionEmpty" class="section-empty">Tegn en snittlinje i kartet for å vise et tverrsnitt.</div></div>
+    <div class="section-foot"><div id="sectionLegend" class="section-legend"></div><span style="margin-left:auto">Visningen beregnes fra objektenes bounding boxes i Trimble Connect.</span></div>
+  </div>
   <div id="toast" class="toast"></div>
 </div>
 <div class="info"><div class="cell"><span class="lab">Sted</span><span id="valPlace" class="val">–</span></div><div class="cell"><span class="lab">Adresse / veg</span><span id="valAddress" class="val">–</span></div><div class="cell"><span class="lab">Kommune</span><span id="valMunicipality" class="val">–</span></div><div class="cell"><span class="lab">Retning</span><span id="valDir" class="val">–</span></div></div>
@@ -171,7 +187,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
 'use strict';
 const $ = id => document.getElementById(id);
 let API=null,map=null,baseLayer=null,fkbLayer=null,customWmsLayer=null,cameraMarker=null,fovLayer=null,pollTimer=null;
-let modelLineGroup=null,modelLineTimer=null,modelLineBusy=false,modelLineRefreshTimer=null;
+let sectionLayerGroup=null,sectionDraft=[],sectionLine=null,sectionEndpoints=[],sectionData=null,sectionBusy=false,sectionBoxActive=false;
 let followCamera=true,hasCamera=false,lastVisualBearing=null;
 let camPos={x:0,y:0,z:0},camDir={x:0,y:1,z:0};
 let lastGeocodeAt=0,lastGeocodeLL=null,geocodeAbort=null;
@@ -357,9 +373,9 @@ function initMap(){
   const mapEl=$('gmap');
   if(!mapEl)throw new Error('Kartbeholderen #gmap mangler.');
   map=L.map(mapEl,{zoomControl:false,preferCanvas:true,attributionControl:true}).setView([61.0000000,7.5000000],15);
-  map.createPane('modelLinePane');map.getPane('modelLinePane').style.zIndex=610;map.getPane('modelLinePane').classList.add('model-line-pane');
+  map.createPane('sectionDrawPane');map.getPane('sectionDrawPane').style.zIndex=620;map.getPane('sectionDrawPane').classList.add('section-draw-pane');
   map.createPane('cameraPane');map.getPane('cameraPane').style.zIndex=700;
-  modelLineGroup=L.layerGroup().addTo(map);
+  sectionLayerGroup=L.layerGroup().addTo(map);
   setBaseLayer($('mapLayer').value);
   $('zoomIn').onclick=()=>map.zoomIn();$('zoomOut').onclick=()=>map.zoomOut();$('resetView').onclick=fitAll;
   map.on('dragstart',()=>{followCamera=false;$('followBtn').classList.remove('active');});
@@ -405,151 +421,106 @@ function parseCamera(cam){if(!cam)return;const c=cam.camera??cam;const pos=c.loo
 async function safe(fn){try{return await fn();}catch(e){return null;}}
 async function pollCamera(){if(!API)return;const calls=[()=>API.viewer?.getCamera?.(),()=>API.viewer?.camera?.getCamera?.(),()=>API.viewer?.getView?.()];for(const c of calls){const r=await safe(c);if(r){parseCamera(r);return;}}}
 
-function setModelLineStatus(text){const el=$('modelLineStatus');if(el)el.innerHTML='Modellinje: <strong>'+text+'</strong>';}
-function clearModelLines(){if(modelLineGroup)modelLineGroup.clearLayers();setModelLineStatus('av');}
-function finiteXY(p){const x=Number(p?.x??p?.X),y=Number(p?.y??p?.Y);return Number.isFinite(x)&&Number.isFinite(y)?{x,y}:null;}
-function boxData(box){
+function setSectionStatus(text){const el=$('sectionStatus');if(el)el.innerHTML='Tverrsnitt: <strong>'+text+'</strong>';}
+function finiteXYZ(p){const x=Number(p?.x??p?.X),y=Number(p?.y??p?.Y),z=Number(p?.z??p?.Z);return [x,y,z].every(Number.isFinite)?{x,y,z}:null;}
+function parseBBox(box){
   const b=box?.boundingBox??box?.box??box;
   const mn=b?.min??b?.minimum??b?.minPoint, mx=b?.max??b?.maximum??b?.maxPoint;
-  if(!mn||!mx)return null;
-  const minX=Number(mn.x??mn.X),minY=Number(mn.y??mn.Y),maxX=Number(mx.x??mx.X),maxY=Number(mx.y??mx.Y);
-  if(![minX,minY,maxX,maxY].every(Number.isFinite))return null;
-  return{x:(minX+maxX)/2,y:(minY+maxY)/2,sx:Math.abs(maxX-minX),sy:Math.abs(maxY-minY)};
+  const a=finiteXYZ(mn),c=finiteXYZ(mx);if(!a||!c)return null;
+  return{minX:Math.min(a.x,c.x),minY:Math.min(a.y,c.y),minZ:Math.min(a.z,c.z),maxX:Math.max(a.x,c.x),maxY:Math.max(a.y,c.y),maxZ:Math.max(a.z,c.z)};
 }
 function modelName(spec,id){return String(spec?.name??spec?.fileName??spec?.title??spec?.displayName??id??'Fagmodell');}
-function isPlausibleProjectPoint(p){return p&&p.x>-500000&&p.x<1500000&&p.y>-500000&&p.y<3000000;}
-function uniquePoints(points,tol=0.75){
-  const seen=new Set(),out=[];
-  for(const p of points){if(!isPlausibleProjectPoint(p))continue;const k=Math.round(p.x/tol)+','+Math.round(p.y/tol);if(!seen.has(k)){seen.add(k);out.push(p);}}
-  return out;
+function modelFormat(spec,name=''){
+  const raw=String(spec?.fileName??spec?.name??spec?.title??spec?.displayName??name??'').toLowerCase();
+  if(/\.trb(?:$|[?#])/i.test(raw)||raw.includes('trimble model'))return 'TRB';
+  if(/\.ifc(?:$|[?#])/i.test(raw)||raw.includes('ifc'))return 'IFC';
+  const type=String(spec?.fileType??spec?.type??spec?.format??spec?.mimeType??'').toLowerCase();
+  if(type.includes('trb'))return 'TRB';if(type.includes('ifc'))return 'IFC';return 'MODELL';
 }
-function dist2(a,b){const dx=a.x-b.x,dy=a.y-b.y;return dx*dx+dy*dy;}
-function median(values){if(!values.length)return 0;const a=[...values].sort((x,y)=>x-y);return a[Math.floor(a.length/2)];}
-function estimateSpacing(points){
-  if(points.length<2)return 10;
-  const sample=points.length>1400?points.filter((_,i)=>i%Math.ceil(points.length/1400)===0):points;
-  const nearest=[];
-  for(let i=0;i<sample.length;i++){
-    let best=Infinity;
-    for(let j=0;j<sample.length;j++){if(i===j)continue;const d=dist2(sample[i],sample[j]);if(d<best)best=d;}
-    if(Number.isFinite(best))nearest.push(Math.sqrt(best));
-  }
-  return Math.max(1.5,median(nearest));
-}
-function gridKey(p,size){return Math.floor(p.x/size)+','+Math.floor(p.y/size);}
-function spatialIndex(points,size){const idx=new Map();points.forEach((p,i)=>{const k=gridKey(p,size);if(!idx.has(k))idx.set(k,[]);idx.get(k).push(i);});return idx;}
-function nearbyIndices(points,index,p,r){
-  const out=[],s=r,ix=Math.floor(p.x/s),iy=Math.floor(p.y/s),r2=r*r;
-  for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(const i of index.get((ix+dx)+','+(iy+dy))||[]){if(dist2(points[i],p)<=r2)out.push(i);}
-  return out;
-}
-function clusterPoints(points,r,minSize=5){
-  const idx=spatialIndex(points,r),seen=new Uint8Array(points.length),clusters=[];
-  for(let seed=0;seed<points.length;seed++){
-    if(seen[seed])continue;seen[seed]=1;const q=[seed],ids=[];
-    while(q.length){const i=q.pop();ids.push(i);for(const j of nearbyIndices(points,idx,points[i],r)){if(!seen[j]){seen[j]=1;q.push(j);}}}
-    if(ids.length>=minSize)clusters.push(ids.map(i=>points[i]));
-  }
-  return clusters;
-}
-function buildMST(points,maxEdge){
-  const n=points.length;if(n<2)return[];
-  const inTree=new Uint8Array(n),best=new Float64Array(n),parent=new Int32Array(n);best.fill(Infinity);parent.fill(-1);best[0]=0;
-  const edges=[];
-  for(let step=0;step<n;step++){
-    let u=-1,b=Infinity;for(let i=0;i<n;i++)if(!inTree[i]&&best[i]<b){b=best[i];u=i;}
-    if(u<0)break;inTree[u]=1;
-    if(parent[u]>=0&&Math.sqrt(b)<=maxEdge)edges.push([parent[u],u,Math.sqrt(b)]);
-    for(let v=0;v<n;v++)if(!inTree[v]){const d=dist2(points[u],points[v]);if(d<best[v]&&Math.sqrt(d)<=maxEdge){best[v]=d;parent[v]=u;}}
-  }
-  return edges;
-}
-function adjacency(n,edges){const a=Array.from({length:n},()=>[]);for(const [u,v,d] of edges){a[u].push([v,d]);a[v].push([u,d]);}return a;}
-function farthest(start,adj){
-  const stack=[[start,-1,0]],par=new Int32Array(adj.length);par.fill(-1);let far=start,fd=0;
-  while(stack.length){const [u,p,d]=stack.pop();par[u]=p;if(d>fd){fd=d;far=u;}for(const [v,w] of adj[u])if(v!==p)stack.push([v,u,d+w]);}
-  return{node:far,distance:fd,parent:par};
-}
-function treeDiameter(points,edges){
-  if(!edges.length)return[];const adj=adjacency(points.length,edges);let seed=0;while(seed<adj.length&&!adj[seed].length)seed++;if(seed>=adj.length)return[];
-  const a=farthest(seed,adj).node,bres=farthest(a,adj);const path=[];let u=bres.node;while(u!==-1){path.push(points[u]);if(u===a)break;u=bres.parent[u];}return path.reverse();
-}
-function pointLineDistance(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(!l2)return Math.hypot(p.x-a.x,p.y-a.y);let t=((p.x-a.x)*dx+(p.y-a.y)*dy)/l2;t=Math.max(0,Math.min(1,t));return Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy));}
-function simplifyDP(points,tol){
-  if(points.length<3)return points;let max=0,idx=0;for(let i=1;i<points.length-1;i++){const d=pointLineDistance(points[i],points[0],points[points.length-1]);if(d>max){max=d;idx=i;}}
-  if(max>tol){const l=simplifyDP(points.slice(0,idx+1),tol),r=simplifyDP(points.slice(idx),tol);return l.slice(0,-1).concat(r);}return[points[0],points[points.length-1]];
-}
-function chaikin(points,iterations=2){let p=points;for(let k=0;k<iterations;k++){if(p.length<3)break;const q=[p[0]];for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1];q.push({x:.75*a.x+.25*b.x,y:.75*a.y+.25*b.y},{x:.25*a.x+.75*b.x,y:.25*a.y+.75*b.y});}q.push(p[p.length-1]);p=q;}return p;}
-function pathLength(line){let s=0;for(let i=1;i<line.length;i++)s+=Math.hypot(line[i].x-line[i-1].x,line[i].y-line[i-1].y);return s;}
-function inferCenterLines(points){
-  points=uniquePoints(points);if(points.length<5)return[];
-  if(points.length>2800){const step=Math.ceil(points.length/2800);points=points.filter((_,i)=>i%step===0);}
-  const spacing=estimateSpacing(points),clusterRadius=Math.max(12,Math.min(55,spacing*5.5));
-  const clusters=clusterPoints(points,clusterRadius,5),lines=[];
-  for(const c of clusters){
-    if(c.length<5)continue;
-    const edges=buildMST(c,clusterRadius*1.35),raw=treeDiameter(c,edges);
-    if(raw.length<3)continue;
-    const len=pathLength(raw);if(len<35)continue;
-    const simplified=simplifyDP(raw,Math.max(2.5,spacing*1.2));
-    const smooth=chaikin(simplified,2);
-    if(pathLength(smooth)>=35)lines.push(smooth);
-  }
-  return lines.sort((a,b)=>pathLength(b)-pathLength(a)).slice(0,8);
-}
-function likelyRoadModel(name){
-  const n=String(name||'').toLowerCase();
-  const include=/(veg|road|alignment|senterlin|centerlin|centrelin|korridor|corridor|trace|tras[eé]|geometri|geom|samferdsel|way)/;
-  const exclude=/(terreng|terrain|berg|grunnlag|existing|eksisterende|landskap|landxml|sky|point.?cloud|mesh|deponi|rigg)/;
-  return include.test(n)&&!exclude.test(n);
+function lineBasis(a,b){const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);if(len<.01)return null;return{ux:dx/len,uy:dy/len,nx:-dy/len,ny:dx/len,len};}
+function projectPoint(p,a,basis){const dx=p.x-a.x,dy=p.y-a.y;return{s:dx*basis.ux+dy*basis.uy,o:dx*basis.nx+dy*basis.ny};}
+function bboxSectionProjection(box,a,basis,halfWidth){
+  const corners=[{x:box.minX,y:box.minY},{x:box.minX,y:box.maxY},{x:box.maxX,y:box.minY},{x:box.maxX,y:box.maxY}].map(p=>projectPoint(p,a,basis));
+  const sMin=Math.min(...corners.map(p=>p.s)),sMax=Math.max(...corners.map(p=>p.s));
+  const oMin=Math.min(...corners.map(p=>p.o)),oMax=Math.max(...corners.map(p=>p.o));
+  if(sMax<0||sMin>basis.len||oMax<-halfWidth||oMin>halfWidth)return null;
+  return{s0:Math.max(0,sMin),s1:Math.min(basis.len,sMax),z0:box.minZ,z1:box.maxZ};
 }
 async function getVisibleModelObjects(){
   let groups=await safe(()=>API.viewer.getObjects(undefined,{visible:true}));
   if(!Array.isArray(groups)||!groups.length)groups=await safe(()=>API.viewer.getObjects());
   return Array.isArray(groups)?groups:[];
 }
-async function pointsForModel(group){
-  const objects=Array.isArray(group?.objects)?group.objects:[],points=[];
-  for(const o of objects){const p=finiteXY(o?.position);if(p)points.push(p);}
-  const ids=objects.map(o=>Number(o?.id)).filter(Number.isFinite);
-  for(let i=0;i<ids.length;i+=350){
-    const boxes=await safe(()=>API.viewer.getObjectBoundingBoxes(group.modelId,ids.slice(i,i+350)));
-    if(Array.isArray(boxes))for(const b of boxes){const d=boxData(b);if(d&&isPlausibleProjectPoint(d))points.push({x:d.x,y:d.y});}
-    if(points.length>12000)break;
-  }
-  return points;
+async function removeSectionBox3D(){if(!API||!sectionBoxActive)return;await safe(()=>API.viewer.removeSectionBox());sectionBoxActive=false;}
+async function addSectionBox3D(a,b,width,zMin,zMax){
+  if(!$('syncSectionBox')?.checked||!API)return;
+  await removeSectionBox3D();const basis=lineBasis(a,b);if(!basis)return;
+  const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:(zMin+zMax)/2};
+  const angle=Math.atan2(basis.uy,basis.ux),half=angle/2;
+  const box={positionX:mid.x*1000,positionY:mid.y*1000,positionZ:mid.z*1000,sizeX:basis.len*1000,sizeY:Math.max(.2,width)*1000,sizeZ:Math.max(10,zMax-zMin+10)*1000,rotationX:0,rotationY:0,rotationZ:Math.sin(half),rotationW:Math.cos(half)};
+  const result=await safe(()=>API.viewer.addSectionBox(box));if(result!==null){sectionBoxActive=true;await safe(()=>API.viewer.selectSectionBox());}
 }
-function scheduleModelLineRefresh(delay=900){clearTimeout(modelLineRefreshTimer);modelLineRefreshTimer=setTimeout(()=>refreshModelLines(false),delay);}
-async function refreshModelLines(showToast=true){
-  if(!$('showModelLine')?.checked){clearModelLines();return;}
-  if(!API||!map||modelLineBusy)return;
-  modelLineBusy=true;setModelLineStatus('leser…');
+function drawSectionOnMap(){
+  if(!sectionLayerGroup)return;sectionLayerGroup.clearLayers();
+  for(const ll of sectionDraft)L.circleMarker(ll,{pane:'sectionDrawPane',radius:6,color:'#fff',weight:3,fillColor:'#7c3aed',fillOpacity:1}).addTo(sectionLayerGroup);
+  if(sectionDraft.length===2){sectionLine=L.polyline(sectionDraft,{pane:'sectionDrawPane',className:'section-line',color:'#7c3aed',weight:5,opacity:.95,dashArray:'10 7'}).addTo(sectionLayerGroup);}
+}
+function startSectionDrawing(){sectionDraft=[];sectionEndpoints=[];sectionData=null;drawSectionOnMap();setSectionStatus('velg startpunkt');$('drawSectionBtn').classList.add('active');toast('Klikk startpunkt og endepunkt for tverrsnittet i kartet.',3500);}
+async function handleSectionMapClick(e){
+  if(!$('drawSectionBtn').classList.contains('active'))return false;
+  sectionDraft.push(e.latlng);drawSectionOnMap();
+  if(sectionDraft.length===1){setSectionStatus('velg endepunkt');return true;}
+  $('drawSectionBtn').classList.remove('active');sectionEndpoints=sectionDraft.map(latLngToModel);setSectionStatus('beregner…');await buildSection(true);return true;
+}
+async function buildSection(openWindow=true){
+  if(sectionEndpoints.length!==2){toast('Tegn først en snittlinje med to punkter.');return;}
+  if(!API||sectionBusy)return;sectionBusy=true;setSectionStatus('leser modeller…');
   try{
+    const [a,b]=sectionEndpoints,basis=lineBasis(a,b);if(!basis)throw new Error('Snittlinjen er for kort.');
+    const width=Math.max(.2,Number($('sectionWidth').value)||2),half=width/2;
     const specs=await safe(()=>API.viewer.getModels());const specMap=new Map();
-    if(Array.isArray(specs))for(const m of specs){for(const id of [m?.id,m?.modelId,m?.versionId,m?.fileId].filter(Boolean))specMap.set(String(id),m);}
-    const groups=await getVisibleModelObjects();modelLineGroup.clearLayers();let modelCount=0,segmentCount=0,totalPoints=0;
+    if(Array.isArray(specs))for(const m of specs)for(const id of [m?.id,m?.modelId,m?.versionId,m?.fileId].filter(Boolean))specMap.set(String(id),m);
+    const groups=await getVisibleModelObjects(),items=[];let totalBoxes=0;
     for(const g of groups){
-      const id=String(g?.modelId??'');if(!id)continue;
-      const name=modelName(specMap.get(id),id);
-      if(!likelyRoadModel(name))continue;
-      const pts=await pointsForModel(g);totalPoints+=pts.length;
-      const lines=inferCenterLines(pts);if(!lines.length)continue;
-      let drew=false;
-      for(const part of lines){
-        const latlngs=part.map(p=>modelToLatLng(p.x,p.y));if(latlngs.length<2)continue;
-        L.polyline(latlngs,{pane:'modelLinePane',className:'model-road-casing',color:'#ffffff',weight:7,opacity:.88,interactive:false,smoothFactor:.7}).addTo(modelLineGroup);
-        const l=L.polyline(latlngs,{pane:'modelLinePane',className:'model-road-line',color:'#d9480f',weight:3.5,opacity:.96,interactive:true,smoothFactor:.7});
-        l.bindTooltip(name,{sticky:true,direction:'top'});l.addTo(modelLineGroup);segmentCount++;drew=true;
+      const modelId=String(g?.modelId??'');if(!modelId)continue;const spec=specMap.get(modelId),name=modelName(spec,modelId),format=modelFormat(spec,name);
+      const ids=(Array.isArray(g?.objects)?g.objects:[]).map(o=>Number(o?.id??o?.runtimeId??o?.objectRuntimeId)).filter(Number.isFinite);
+      for(let i=0;i<ids.length;i+=300){
+        const boxes=await safe(()=>API.viewer.getObjectBoundingBoxes(modelId,ids.slice(i,i+300)));if(!Array.isArray(boxes))continue;
+        totalBoxes+=boxes.length;
+        for(const raw of boxes){const box=parseBBox(raw);if(!box)continue;const pr=bboxSectionProjection(box,a,basis,half);if(pr&&pr.z1-pr.z0>.005)items.push({...pr,modelId,name,format});}
+        if(totalBoxes>30000)break;
       }
-      if(drew)modelCount++;
+      if(totalBoxes>30000)break;
     }
-    setModelLineStatus(modelCount?`${modelCount} modeller / ${segmentCount} stabiliserte spor`:'ingen egnet vegmodell');
-    if(showToast)toast(modelCount?`Veglinje oppdatert fra ${modelCount} viste fagmodeller.`:`Fant ingen synlig vegmodell med egnet objektdistribusjon.`,4200);
-  }catch(e){console.error('Modellinje feilet',e);setModelLineStatus('feil');if(showToast)toast('Kunne ikke lese modellobjekter fra Trimble Connect.',4500);}
-  finally{modelLineBusy=false;}
+    if(!items.length){sectionData={items:[],length:basis.len,width};setSectionStatus('ingen treff');if(openWindow)$('sectionWindow').classList.add('show');requestAnimationFrame(renderSection);toast('Ingen synlige modellobjekter krysser snittkorridoren.',4200);return;}
+    const zMin=Math.min(...items.map(x=>x.z0)),zMax=Math.max(...items.map(x=>x.z1));
+    sectionData={items,length:basis.len,width,zMin,zMax,a,b};
+    setSectionStatus(`${items.length} objekter`);if(openWindow)$('sectionWindow').classList.add('show');requestAnimationFrame(renderSection);
+    await addSectionBox3D(a,b,width,zMin,zMax);
+  }catch(e){console.error('Tverrsnitt feilet',e);setSectionStatus('feil');toast('Tverrsnitt kunne ikke beregnes: '+String(e?.message||e),5000);}
+  finally{sectionBusy=false;}
 }
-async function initTrimble(){try{API=await TrimbleConnectWorkspace.connect(window.parent,(event,args)=>{const ev=String(event).toLowerCase();if(ev.includes('camera')||ev.includes('view'))parseCamera(args?.data??args?.camera??args);if(ev.includes('model')||ev.includes('visibility')||ev.includes('presentation')||ev.includes('layer'))scheduleModelLineRefresh();});setStatus('live','Trimble tilkoblet');await safe(()=>API.viewer?.subscribeToCamera?.());await safe(()=>API.viewer?.enableCameraEvents?.());pollTimer=setInterval(pollCamera,700);modelLineTimer=setInterval(()=>refreshModelLines(false),30000);pollCamera();setTimeout(()=>refreshModelLines(false),1800);}catch(e){console.error(e);setStatus('error','Trimble ikke tilkoblet');toast('Trimble Connect API ikke tilgjengelig');}}
-async function onMapClick(e){if(!$('clickMove')?.checked||!API||!hasCamera)return;const target=latLngToModel(e.latlng);const cam={position:{x:target.x,y:target.y,z:target.z},direction:camDir};let ok=false;const calls=[()=>API.viewer?.setCamera?.(cam),()=>API.viewer?.camera?.setCamera?.(cam),()=>API.viewer?.setView?.({camera:cam}),()=>API.viewer?.moveCamera?.(cam)];for(const c of calls){const r=await safe(c);if(r!==null){ok=true;break;}}camPos=target;updateCamera();toast(ok?'Kamera flyttet til NTM7-posisjon':'Kartposisjon beregnet, men Trimble API støtter ikke kameraflytting her');}
+function modelColor(name){let h=0;for(let i=0;i<name.length;i++)h=(h*31+name.charCodeAt(i))>>>0;return `hsl(${h%360} 62% 48%)`;}
+function niceStep(span,target=8){const rough=span/target,pow=10**Math.floor(Math.log10(Math.max(rough,1e-9))),n=rough/pow;return (n<1.5?1:n<3?2:n<7?5:10)*pow;}
+function renderSection(){
+  const canvas=$('sectionCanvas'),empty=$('sectionEmpty'),legend=$('sectionLegend');if(!canvas)return;
+  const rect=canvas.getBoundingClientRect(),dpr=Math.max(1,window.devicePixelRatio||1);canvas.width=Math.max(1,Math.round(rect.width*dpr));canvas.height=Math.max(1,Math.round(rect.height*dpr));
+  const ctx=canvas.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,rect.width,rect.height);legend.innerHTML='';
+  if(!sectionData?.items?.length){empty.style.display='flex';$('sectionMeta').textContent=sectionData?`Lengde ${sectionData.length.toFixed(1)} m · bredde ${sectionData.width.toFixed(1)} m`:'–';return;}empty.style.display='none';
+  const data=sectionData,pad={l:62,r:20,t:22,b:42},w=rect.width-pad.l-pad.r,h=rect.height-pad.t-pad.b;
+  const zPad=Math.max(1,(data.zMax-data.zMin)*.08),z0=data.zMin-zPad,z1=data.zMax+zPad;
+  const sx=s=>pad.l+(s/data.length)*w,sy=z=>pad.t+(z1-z)/(z1-z0)*h;
+  ctx.font='11px Segoe UI, sans-serif';ctx.lineWidth=1;ctx.strokeStyle='#d8e1ea';ctx.fillStyle='#667085';
+  const xs=niceStep(data.length,10);for(let x=0;x<=data.length+1e-6;x+=xs){const px=sx(x);ctx.beginPath();ctx.moveTo(px,pad.t);ctx.lineTo(px,pad.t+h);ctx.stroke();ctx.fillText(x.toFixed(xs<1?1:0)+' m',px-12,pad.t+h+19);}
+  const zs=niceStep(z1-z0,8);for(let z=Math.ceil(z0/zs)*zs;z<=z1+1e-6;z+=zs){const py=sy(z);ctx.beginPath();ctx.moveTo(pad.l,py);ctx.lineTo(pad.l+w,py);ctx.stroke();ctx.fillText(z.toFixed(zs<1?1:0),8,py+4);}
+  ctx.strokeStyle='#344054';ctx.lineWidth=1.5;ctx.strokeRect(pad.l,pad.t,w,h);
+  const byModel=new Map();for(const it of data.items){if(!byModel.has(it.name))byModel.set(it.name,{color:modelColor(it.name),items:[]});byModel.get(it.name).items.push(it);}
+  for(const [name,g] of byModel){ctx.fillStyle=g.color;ctx.strokeStyle=g.color;for(const it of g.items){const x=sx(it.s0),x2=sx(Math.max(it.s1,it.s0+.08)),y=sy(it.z1),y2=sy(it.z0);ctx.globalAlpha=.34;ctx.fillRect(x,y,Math.max(1.5,x2-x),Math.max(1.5,y2-y));ctx.globalAlpha=.85;ctx.strokeRect(x,y,Math.max(1.5,x2-x),Math.max(1.5,y2-y));}const span=document.createElement('span');span.innerHTML=`<i style="background:${g.color}"></i>${name}`;legend.appendChild(span);}
+  ctx.globalAlpha=1;ctx.fillStyle='#172033';ctx.font='700 12px Segoe UI, sans-serif';ctx.fillText('Avstand langs snittlinje',pad.l+w/2-58,rect.height-8);ctx.save();ctx.translate(14,pad.t+h/2+35);ctx.rotate(-Math.PI/2);ctx.fillText('NN2000 høyde (m)',0,0);ctx.restore();
+  $('sectionMeta').textContent=`Lengde ${data.length.toFixed(1)} m · korridor ${data.width.toFixed(1)} m · ${data.items.length} objekter · Z ${data.zMin.toFixed(1)}–${data.zMax.toFixed(1)} m`;
+}
+async function initTrimble(){try{API=await TrimbleConnectWorkspace.connect(window.parent,(event,args)=>{const ev=String(event).toLowerCase();if(ev.includes('camera')||ev.includes('view'))parseCamera(args?.data??args?.camera??args);if(sectionEndpoints.length===2&&(ev.includes('model')||ev.includes('visibility')||ev.includes('presentation')||ev.includes('layer')))setSectionStatus('modellvisning endret – oppdater');});setStatus('live','Trimble tilkoblet');await safe(()=>API.viewer?.subscribeToCamera?.());await safe(()=>API.viewer?.enableCameraEvents?.());pollTimer=setInterval(pollCamera,700);pollCamera();}catch(e){console.error(e);setStatus('error','Trimble ikke tilkoblet');toast('Trimble Connect API ikke tilgjengelig');}}
+async function onMapClick(e){if(await handleSectionMapClick(e))return;if(!$('clickMove')?.checked||!API||!hasCamera)return;const target=latLngToModel(e.latlng);const cam={position:{x:target.x,y:target.y,z:target.z},direction:camDir};let ok=false;const calls=[()=>API.viewer?.setCamera?.(cam),()=>API.viewer?.camera?.setCamera?.(cam),()=>API.viewer?.setView?.({camera:cam}),()=>API.viewer?.moveCamera?.(cam)];for(const c of calls){const r=await safe(c);if(r!==null){ok=true;break;}}camPos=target;updateCamera();toast(ok?'Kamera flyttet til NTM7-posisjon':'Kartposisjon beregnet, men Trimble API støtter ikke kameraflytting her');}
 function openStreetView(){const ll=hasCamera?modelToLatLng(camPos.x,camPos.y):map?.getCenter();if(!ll){toast('Ingen kartposisjon tilgjengelig');return;}const url=`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${ll.lat.toFixed(7)},${ll.lng.toFixed(7)}&heading=${Math.round(headingDeg())}&pitch=0&fov=80`;const w=window.open(url,'_blank','noopener,noreferrer');toast(w?'Åpner Google Street View i ny fane':'Nettleseren blokkerte ny fane.');}
 function wireUI(){
   $('centerCamera').onclick=()=>{if(hasCamera&&map)map.setView(modelToLatLng(camPos.x,camPos.y),Math.max(map.getZoom(),18));};
@@ -562,8 +533,13 @@ function wireUI(){
   $('closeCfg').onclick=()=>$('setupPanel').classList.remove('show');
   $('streetViewBtn').onclick=openStreetView;
   $('showFOV').onchange=()=>updateCamera();
-  $('showModelLine').onchange=()=>{$('showModelLine').checked?refreshModelLines(true):clearModelLines();};
-  $('refreshModelLine').onclick=()=>refreshModelLines(true);
+  $('drawSectionBtn').onclick=startSectionDrawing;
+  $('showSectionBtn').onclick=()=>{$('sectionWindow').classList.add('show');requestAnimationFrame(renderSection);};
+  $('closeSectionBtn').onclick=()=>$('sectionWindow').classList.remove('show');
+  $('rebuildSectionBtn').onclick=()=>buildSection(true);
+  $('sectionWidth').onchange=()=>{if(sectionEndpoints.length===2)setSectionStatus('bredde endret – oppdater');};
+  $('syncSectionBox').onchange=async()=>{if(!$('syncSectionBox').checked)await removeSectionBox3D();else if(sectionData?.items?.length)await addSectionBox3D(sectionData.a,sectionData.b,sectionData.width,sectionData.zMin,sectionData.zMax);};
+  window.addEventListener('resize',()=>{if($('sectionWindow').classList.contains('show'))renderSection();});
 }
 function boot(){
   try{
