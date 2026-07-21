@@ -2,7 +2,7 @@
 <html lang="nb">
 <head>
 <meta charset="UTF-8" />
-<title>MiniMap E39 – Kartverket Norges grunnkart</title>
+<title>MiniMap E39 – Kartverket topo WMTS</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -117,8 +117,8 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
     <img src="norconsult-logo-black.png" alt="Norconsult logo" class="logo">
     <div class="title-block">
       <h1 class="title">MiniMap</h1>
-      <div class="org">Norconsult Norge</div>
-      <div class="dev"><strong>Developed by Norconsult</strong><br>AI-assisted development<br><span class="dev-contact">Kontakt: Edin.Dzakmic@norconsult.com</span></div>
+      <div class="org">Developed by Norconsult, AI-assisted development.</div>
+      <div class="dev"><span class="dev-contact">Kontakt: Edin.Dzakmic@norconsult.com</span></div>
     </div>
   </div>
   <div class="status"><span id="statusText">Starter…</span><span id="statusDot" class="dot"></span></div>
@@ -136,8 +136,8 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
       <span class="section-label">Kartgrunnlag</span><select id="mapLayer" class="mini-sel">
         <option value="arcgis_flyfoto">Flyfoto – Esri World Imagery</option>
         <option value="osm">Vektorkart – OpenStreetMap</option>
-        <option value="grunnkart" selected>Kartverket Norges grunnkart (WMS)</option>
-        <option value="kv_topo">Kartverket topo (WMTS)</option>
+        <option value="grunnkart">Kartverket Norges grunnkart (WMS)</option>
+        <option value="kv_topo" selected>Kartverket topo (WMTS)</option>
         <option value="kv_gray">Kartverket gråtone (WMTS)</option>
         <option value="kv_raster">Kartverket raster (WMTS)</option>
         <option value="wms_fkb">Kartverket FKB (WMS)</option>
@@ -164,7 +164,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
     <div class="checks options-row">
       <label><input type="checkbox" id="showFOV" checked> Synsfelt</label>
       <label><input type="checkbox" id="clickMove" checked> Klikk i kart flytter kamera</label>
-      <span class="badge">Standardkart: Kartverket Norges grunnkart (WMS) · Fast CRS: EUREF89 NTM7 (EPSG:5107) · Høyde: NN2000</span>
+      <span class="badge">Standardkart: Kartverket topo (WMTS) · Fast CRS: EUREF89 NTM7 (EPSG:5107) · Høyde: NN2000</span>
     </div>
   </div>
   <div class="corner"><div id="levelBadge" class="level">NN2000 Z: –</div><svg id="compass" viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="#fff" stroke="#d8e0ee"/><polygon id="compassNeedle" points="24,5 28,24 24,20 20,24" fill="#0050b5"/><polygon id="compassNeedleS" points="24,43 20,24 24,28 28,24" fill="#98a2b3"/><text x="24" y="14" text-anchor="middle" font-size="7" font-weight="900" fill="#0050b5">N</text></svg></div>
@@ -345,7 +345,7 @@ function setBaseLayer(key){
     addCustomWMS(false);
     return;
   }
-  baseLayer=(base[key]||base.grunnkart)().addTo(map);
+  baseLayer=(base[key]||base.kv_topo)().addTo(map);
 }
 function addCustomWMS(showMsg=true){
   const url=cleanWmsUrl($('wmsUrl')?.value||'');
@@ -364,8 +364,8 @@ function initMap(){
   if(!mapEl)throw new Error('Kartbeholderen #gmap mangler.');
   map=L.map(mapEl,{zoomControl:false,preferCanvas:true,attributionControl:true}).setView([61.0000000,7.5000000],15);
   map.createPane('cameraPane');map.getPane('cameraPane').style.zIndex=700;
-  $('mapLayer').value='grunnkart';
-  setBaseLayer('grunnkart');
+  $('mapLayer').value='kv_topo';
+  setBaseLayer('kv_topo');
   $('zoomIn').onclick=()=>map.zoomIn();$('zoomOut').onclick=()=>map.zoomOut();$('resetView').onclick=fitAll;
   map.on('dragstart',()=>{followCamera=false;$('followBtn').classList.remove('active');});
   map.on('click',onMapClick);
