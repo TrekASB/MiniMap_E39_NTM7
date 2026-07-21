@@ -2,7 +2,7 @@
 <html lang="nb">
 <head>
 <meta charset="UTF-8" />
-<title>MiniMap E39 – Tverrsnitt med Kartverket terreng og fagmodeller</title>
+<title>MiniMap E39 – Kartverket Norges grunnkart</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -136,7 +136,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
       <span class="section-label">Kartgrunnlag</span><select id="mapLayer" class="mini-sel">
         <option value="arcgis_flyfoto">Flyfoto – Esri World Imagery</option>
         <option value="osm">Vektorkart – OpenStreetMap</option>
-        <option value="grunnkart">Kartverket Norges grunnkart (WMS)</option>
+        <option value="grunnkart" selected>Kartverket Norges grunnkart (WMS)</option>
         <option value="kv_topo">Kartverket topo (WMTS)</option>
         <option value="kv_gray">Kartverket gråtone (WMTS)</option>
         <option value="kv_raster">Kartverket raster (WMTS)</option>
@@ -164,22 +164,12 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
     <div class="checks options-row">
       <label><input type="checkbox" id="showFOV" checked> Synsfelt</label>
       <label><input type="checkbox" id="clickMove" checked> Klikk i kart flytter kamera</label>
-      <button id="drawSectionBtn" class="btn" title="Klikk to punkter i kartet for å definere tverrsnitt">╱ Tegn tverrsnitt</button>
-      <button id="showSectionBtn" class="btn" title="Vis siste beregnede tverrsnitt">▥ Vis tverrsnitt</button>
-      <label>Snittbredde <input id="sectionWidth" class="mini-input" type="number" min="0.2" max="50" step="0.5" value="2" style="width:72px;height:30px"> m</label>
-      <label><input type="checkbox" id="syncSectionBox" checked> Vis snittboks i 3D</label>
-      <span id="sectionStatus" class="section-sync">Tverrsnitt: <strong>ikke definert</strong></span>
-      <span class="badge">Fast CRS: EUREF89 NTM7 (EPSG:5107) · Høyde: NN2000</span>
+      <span class="badge">Standardkart: Kartverket Norges grunnkart (WMS) · Fast CRS: EUREF89 NTM7 (EPSG:5107) · Høyde: NN2000</span>
     </div>
   </div>
   <div class="corner"><div id="levelBadge" class="level">NN2000 Z: –</div><svg id="compass" viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="#fff" stroke="#d8e0ee"/><polygon id="compassNeedle" points="24,5 28,24 24,20 20,24" fill="#0050b5"/><polygon id="compassNeedleS" points="24,43 20,24 24,28 28,24" fill="#98a2b3"/><text x="24" y="14" text-anchor="middle" font-size="7" font-weight="900" fill="#0050b5">N</text></svg></div>
   <div class="controls"><button id="zoomIn" class="ctrl">+</button><button id="zoomOut" class="ctrl">−</button><button id="resetView" class="ctrl" title="Zoom alle">⊙</button></div>
   <div id="setupPanel" class="panel"><h3>Prosjektkoordinatsystem</h3><p class="hint">Denne versjonen er låst til Published coordinate reference system: Norway/EUREF89NTM | NTM Zone 7 | EPSG:5107. Høydesystem: NN2000. Modellkoordinater tolkes som X=øst og Y=nord i EUREF89 NTM sone 7.</p><div class="grid hidden"><div class="field"><label>Koordinatsystem</label><select id="cfgCRS"><option value="ntm7" selected>NTM7</option></select></div><div class="field"><label>Akser</label><select id="cfgAxis"><option value="xy" selected>X=øst, Y=nord</option></select></div><input id="cfgMX" value="0"><input id="cfgMY" value="0"><input id="cfgLat" value="61.0000000"><input id="cfgLng" value="7.5000000"><input id="cfgScaleX" value="1"><input id="cfgScaleY" value="1"><input id="cfgRotation" value="0"></div><div class="actions"><button id="closeCfg" class="btn">Lukk</button></div></div>
-  <div id="sectionWindow" class="section-window" role="dialog" aria-modal="true" aria-label="Tverrsnitt">
-    <div class="section-head"><h3>Tverrsnitt – eksisterende terreng og viste fagmodeller</h3><div id="sectionMeta" class="meta">–</div><button id="rebuildSectionBtn" class="btn">↻ Oppdater</button><button id="closeSectionBtn" class="btn">Lukk</button></div>
-    <div class="section-body"><canvas id="sectionCanvas"></canvas><div id="sectionEmpty" class="section-empty">Tegn en snittlinje i kartet for å vise et tverrsnitt.</div></div>
-    <div class="section-foot"><div id="sectionLegend" class="section-legend"></div><span style="margin-left:auto">Terreng: Kartverket høydedata · Fagmodeller: synlige TRB, DWG og IFC-objekter i Trimble Connect.</span></div>
-  </div>
   <div id="toast" class="toast"></div>
 </div>
 <div class="info"><div class="cell"><span class="lab">Sted</span><span id="valPlace" class="val">–</span></div><div class="cell"><span class="lab">Adresse / veg</span><span id="valAddress" class="val">–</span></div><div class="cell"><span class="lab">Kommune</span><span id="valMunicipality" class="val">–</span></div><div class="cell"><span class="lab">Retning</span><span id="valDir" class="val">–</span></div></div>
@@ -355,7 +345,7 @@ function setBaseLayer(key){
     addCustomWMS(false);
     return;
   }
-  baseLayer=(base[key]||base.arcgis_flyfoto)().addTo(map);
+  baseLayer=(base[key]||base.grunnkart)().addTo(map);
 }
 function addCustomWMS(showMsg=true){
   const url=cleanWmsUrl($('wmsUrl')?.value||'');
@@ -373,10 +363,9 @@ function initMap(){
   const mapEl=$('gmap');
   if(!mapEl)throw new Error('Kartbeholderen #gmap mangler.');
   map=L.map(mapEl,{zoomControl:false,preferCanvas:true,attributionControl:true}).setView([61.0000000,7.5000000],15);
-  map.createPane('sectionDrawPane');map.getPane('sectionDrawPane').style.zIndex=620;map.getPane('sectionDrawPane').classList.add('section-draw-pane');
   map.createPane('cameraPane');map.getPane('cameraPane').style.zIndex=700;
-  sectionLayerGroup=L.layerGroup().addTo(map);
-  setBaseLayer($('mapLayer').value);
+  $('mapLayer').value='grunnkart';
+  setBaseLayer('grunnkart');
   $('zoomIn').onclick=()=>map.zoomIn();$('zoomOut').onclick=()=>map.zoomOut();$('resetView').onclick=fitAll;
   map.on('dragstart',()=>{followCamera=false;$('followBtn').classList.remove('active');});
   map.on('click',onMapClick);
@@ -577,27 +566,20 @@ function renderSection(){
   const fmt=[...new Set((data.items||[]).map(x=>x.format))].join(', ')||'ingen';
   $('sectionMeta').textContent=`Lengde ${data.length.toFixed(1)} m · korridor ${data.width.toFixed(1)} m · ${data.terrain?.length||0} terrengpunkt · ${data.items?.length||0} objekter · ${fmt} · Z ${data.zMin.toFixed(1)}–${data.zMax.toFixed(1)} m`;
 }
-async function initTrimble(){try{API=await TrimbleConnectWorkspace.connect(window.parent,(event,args)=>{const ev=String(event).toLowerCase();if(ev.includes('camera')||ev.includes('view'))parseCamera(args?.data??args?.camera??args);if(sectionEndpoints.length===2&&(ev.includes('model')||ev.includes('visibility')||ev.includes('presentation')||ev.includes('layer')))setSectionStatus('modellvisning endret – oppdater');});setStatus('live','Trimble tilkoblet');await safe(()=>API.viewer?.subscribeToCamera?.());await safe(()=>API.viewer?.enableCameraEvents?.());pollTimer=setInterval(pollCamera,700);pollCamera();}catch(e){console.error(e);setStatus('error','Trimble ikke tilkoblet');toast('Trimble Connect API ikke tilgjengelig');}}
-async function onMapClick(e){if(await handleSectionMapClick(e))return;if(!$('clickMove')?.checked||!API||!hasCamera)return;const target=latLngToModel(e.latlng);const cam={position:{x:target.x,y:target.y,z:target.z},direction:camDir};let ok=false;const calls=[()=>API.viewer?.setCamera?.(cam),()=>API.viewer?.camera?.setCamera?.(cam),()=>API.viewer?.setView?.({camera:cam}),()=>API.viewer?.moveCamera?.(cam)];for(const c of calls){const r=await safe(c);if(r!==null){ok=true;break;}}camPos=target;updateCamera();toast(ok?'Kamera flyttet til NTM7-posisjon':'Kartposisjon beregnet, men Trimble API støtter ikke kameraflytting her');}
+async function initTrimble(){try{API=await TrimbleConnectWorkspace.connect(window.parent,(event,args)=>{const ev=String(event).toLowerCase();if(ev.includes('camera')||ev.includes('view'))parseCamera(args?.data??args?.camera??args);});setStatus('live','Trimble tilkoblet');await safe(()=>API.viewer?.subscribeToCamera?.());await safe(()=>API.viewer?.enableCameraEvents?.());pollTimer=setInterval(pollCamera,700);pollCamera();}catch(e){console.error(e);setStatus('error','Trimble ikke tilkoblet');toast('Trimble Connect API ikke tilgjengelig');}}
+async function onMapClick(e){if(!$('clickMove')?.checked||!API||!hasCamera)return;const target=latLngToModel(e.latlng);const cam={position:{x:target.x,y:target.y,z:target.z},direction:camDir};let ok=false;const calls=[()=>API.viewer?.setCamera?.(cam),()=>API.viewer?.camera?.setCamera?.(cam),()=>API.viewer?.setView?.({camera:cam}),()=>API.viewer?.moveCamera?.(cam)];for(const c of calls){const r=await safe(c);if(r!==null){ok=true;break;}}camPos=target;updateCamera();toast(ok?'Kamera flyttet til NTM7-posisjon':'Kartposisjon beregnet, men Trimble API støtter ikke kameraflytting her');}
 function openStreetView(){const ll=hasCamera?modelToLatLng(camPos.x,camPos.y):map?.getCenter();if(!ll){toast('Ingen kartposisjon tilgjengelig');return;}const url=`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${ll.lat.toFixed(7)},${ll.lng.toFixed(7)}&heading=${Math.round(headingDeg())}&pitch=0&fov=80`;const w=window.open(url,'_blank','noopener,noreferrer');toast(w?'Åpner Google Street View i ny fane':'Nettleseren blokkerte ny fane.');}
 function wireUI(){
   $('centerCamera').onclick=()=>{if(hasCamera&&map)map.setView(modelToLatLng(camPos.x,camPos.y),Math.max(map.getZoom(),18));};
   $('followBtn').onclick=()=>{followCamera=!followCamera;$('followBtn').classList.toggle('active',followCamera);if(followCamera)$('centerCamera').click();};
   $('mapLayer').onchange=()=>setBaseLayer($('mapLayer').value);
   $('fkbLayerSelect').onchange=()=>{if($('mapLayer').value!=='wms_fkb'){$('mapLayer').value='wms_fkb';setBaseLayer('wms_fkb');}else refreshFkbLayer();};
-  $('refreshFkbLayers').onclick=async()=>{if($('mapLayer').value!=='wms_fkb'){$('mapLayer').value='wms_fkb';setBaseLayer('wms_fkb');} await loadFkbLayersFromCapabilities(); refreshFkbLayer();};
+  $('refreshFkbLayers').onclick=async()=>{if($('mapLayer').value!=='wms_fkb'){$('mapLayer').value='wms_fkb';setBaseLayer('wms_fkb');}await loadFkbLayersFromCapabilities();refreshFkbLayer();};
   $('applyWms')?.addEventListener('click',()=>{if($('mapLayer').value!=='wms_custom'){$('mapLayer').value='wms_custom';setBaseLayer('wms_custom');}else addCustomWMS(true);});
   $('configBtn').onclick=()=>$('setupPanel').classList.add('show');
   $('closeCfg').onclick=()=>$('setupPanel').classList.remove('show');
   $('streetViewBtn').onclick=openStreetView;
   $('showFOV').onchange=()=>updateCamera();
-  $('drawSectionBtn').onclick=startSectionDrawing;
-  $('showSectionBtn').onclick=()=>{$('sectionWindow').classList.add('show');requestAnimationFrame(renderSection);};
-  $('closeSectionBtn').onclick=()=>$('sectionWindow').classList.remove('show');
-  $('rebuildSectionBtn').onclick=()=>buildSection(true);
-  $('sectionWidth').onchange=()=>{if(sectionEndpoints.length===2)setSectionStatus('bredde endret – oppdater');};
-  $('syncSectionBox').onchange=async()=>{if(!$('syncSectionBox').checked)await removeSectionBox3D();else if(sectionData?.items?.length)await addSectionBox3D(sectionData.a,sectionData.b,sectionData.width,sectionData.zMin,sectionData.zMax);};
-  window.addEventListener('resize',()=>{if($('sectionWindow').classList.contains('show'))renderSection();});
 }
 function boot(){
   try{
